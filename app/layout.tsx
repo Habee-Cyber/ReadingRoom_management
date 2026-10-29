@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Reading Room — A better place to focus",
+  title: "stillroom — A better place to focus",
   description: "A calm, simple way to manage your reading room and find your seat.",
 };
 

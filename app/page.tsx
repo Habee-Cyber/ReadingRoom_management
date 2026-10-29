@@ -24,13 +24,18 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [studentView, setStudentView] = useState(false);
+  const [studentName, setStudentName] = useState("");
+  const [studentEmail, setStudentEmail] = useState("");
   const available = seats.filter((seat) => seat.status === "available").length;
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 2600); };
   const reserve = () => {
     if (!selected) return;
     setSeats((items) => items.map((seat) => seat.id === selected.id ? { ...seat, status: "reserved" } : seat));
-    setSelected(null); notify("Seat reserved successfully");
+    setSelected(null); setStudentView(false); notify("Booking request sent to the reading room admin");
   };
+
+  if (studentView) return <StudentPortal seats={seats} onBack={() => setStudentView(false)} onSelect={(seat) => { setSelected(seat); setStudentView(false); }} />;
 
   return <main className="app-shell">
     <aside className="sidebar">
@@ -45,7 +50,7 @@ export default function Home() {
       <div className="sidebar-bottom"><div className="plan-card"><div className="plan-top"><span className="plan-dot"/> YOUR SPACE <span className="plan-live">LIVE</span></div><strong>Looking good, Sara ✨</strong><p>Your reading room is 78% full. Keep the quiet going.</p><div className="progress"><i/></div><small>25 of 32 seats occupied</small></div><button className="profile"><div className="avatar admin-avatar">SP</div><div className="profile-meta"><strong>Sara Patel</strong><span>Administrator</span></div><MoreHorizontal size={19}/></button></div>
     </aside>
     <section className="main-area">
-      <header className="topbar"><div className="crumb">Workspace <span>/</span> <strong>{active}</strong></div><div className="top-actions"><button className="icon-btn search-trigger" onClick={() => document.getElementById("student-search")?.focus()}><Search size={18}/></button><button className="icon-btn notification" onClick={() => notify("You're all caught up!")}><Bell size={18}/><i/></button><div className="top-divider"/><button className="view-switch" onClick={() => notify("Student view link copied to clipboard")}><span className="view-dot"/> Student view <ArrowUpRight size={14}/></button></div></header>
+      <header className="topbar"><div className="crumb">Workspace <span>/</span> <strong>{active}</strong></div><div className="top-actions"><button className="icon-btn search-trigger" onClick={() => document.getElementById("student-search")?.focus()}><Search size={18}/></button><button className="icon-btn notification" onClick={() => notify("You're all caught up!")}><Bell size={18}/><i/></button><div className="top-divider"/><button className="view-switch" onClick={() => setStudentView(true)}><span className="view-dot"/> Student view <ArrowUpRight size={14}/></button></div></header>
       <div className="content">
         <div className="welcome-row"><div><div className="eyebrow"><span/> TUESDAY, OCTOBER 29, 2024</div><h1>A little room to <em>focus.</em></h1><p className="welcome-copy">Here’s what’s happening at your reading room today.</p></div><button className="invite-button" onClick={() => notify("Invite link copied — share it with a new student!")}><Plus size={17}/> Invite a student <ArrowUpRight size={15}/></button></div>
         <div className="stats-grid">
@@ -65,10 +70,20 @@ export default function Home() {
         <footer className="footer"><span>Made for slower mornings and better ideas <span className="footer-spark">✳</span></span><span>stillroom · Serenity Study Hall</span></footer>
       </div>
     </section>
-    {selected && <div className="modal-backdrop" onClick={() => setSelected(null)}><div className="booking-modal" onClick={(e) => e.stopPropagation()}><button className="modal-close" onClick={() => setSelected(null)}><X size={18}/></button><div className="modal-icon"><BookOpen size={21}/></div><div className="section-kicker">A PLACE FOR YOURSELF</div><h2>Seat {selected.id < 17 ? "A" : "B"}-{String((selected.id - 1) % 16 + 1).padStart(2,"0")}</h2><p>{selected.zone} · ₹1,200 / month</p><div className="modal-field"><label>STUDENT NAME</label><input placeholder="e.g. Priya Nair"/></div><div className="modal-field"><label>EMAIL ADDRESS</label><input placeholder="you@example.com" type="email"/></div><button className="invite-button modal-submit" onClick={reserve}>Request this seat <ArrowUpRight size={15}/></button><small>Your request will be sent to the reading room admin.</small></div></div>}
+    {selected && <div className="modal-backdrop" onClick={() => setSelected(null)}><form className="booking-modal" onSubmit={(e) => { e.preventDefault(); reserve(); }} onClick={(e) => e.stopPropagation()}><button type="button" className="modal-close" onClick={() => setSelected(null)}><X size={18}/></button><div className="modal-icon"><BookOpen size={21}/></div><div className="section-kicker">A PLACE FOR YOURSELF</div><h2>Seat {selected.id < 17 ? "A" : "B"}-{String((selected.id - 1) % 16 + 1).padStart(2,"0")}</h2><p>{selected.zone} · ₹1,200 / month</p><div className="modal-field"><label htmlFor="booking-name">STUDENT NAME</label><input id="booking-name" required value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="e.g. Priya Nair"/></div><div className="modal-field"><label htmlFor="booking-email">EMAIL ADDRESS</label><input id="booking-email" required value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="you@example.com" type="email"/></div><button type="submit" className="invite-button modal-submit">Request this seat <ArrowUpRight size={15}/></button><small>Your request will be sent to the reading room admin.</small></form></div>}
     {toast && <div className="toast"><Check size={16}/>{toast}</div>}
   </main>;
 }
 
-function SeatButton({seat, onClick}:{seat:Seat;onClick:()=>void}) { return <button onClick={onClick} className={`seat ${seat.status}`} aria-label={`Seat ${seat.id}, ${seat.status}`}>{seat.status === "occupied" ? <span className="seat-person">{seat.name?.split(" ").map((x)=>x[0]).join("")}</span> : seat.status === "reserved" ? <Clock3 size={13}/> : <span>{String(seat.id < 17 ? seat.id : seat.id - 16).padStart(2,"0")}</span>}</button>; }
+function StudentPortal({ seats, onBack, onSelect }: { seats: Seat[]; onBack: () => void; onSelect: (seat: Seat) => void }) {
+  const available = seats.filter((seat) => seat.status === "available").length;
+  return <main className="student-portal">
+    <header className="student-header"><a className="brand" href="#"><div className="brand-mark"><BookOpen size={20}/></div><div><strong>stillroom</strong><span>READING SPACE</span></div></a><button className="view-switch" onClick={onBack}>Admin preview <ArrowUpRight size={14}/></button></header>
+    <section className="student-hero"><div className="student-intro"><div className="eyebrow"><span/> SERENITY STUDY HALL · MEMBERSHIP</div><h1>Find your little <em>corner.</em></h1><p>Choose a seat that feels right. We’ll confirm your booking shortly.</p><div className="student-availability"><span className="availability-dot"/><strong>{available} seats available</strong><span>· ₹1,200 / month</span></div></div><div className="student-note"><BookOpen size={19}/><strong>A calmer place to focus</strong><span>Quiet study zones, welcoming people, and a seat that’s yours.</span></div></section>
+    <section className="student-map-panel"><div className="panel-heading"><div><div className="section-kicker">PICK YOUR PREFERRED SEAT</div><h2>Reading room floor plan</h2></div><div className="legend"><span><i className="legend-open"/> Available</span><span><i className="legend-taken"/> Occupied</span><span><i className="legend-held"/> Reserved</span></div></div><div className="student-floor-plan"><div className="zone-label"><span>01</span><i/> QUIET ZONE <small>· 16 seats</small></div><div className="seat-grid">{seats.slice(0,16).map((seat) => <SeatButton key={seat.id} seat={seat} onClick={() => seat.status === "available" && onSelect(seat)}/>)}</div><div className="zone-divider"><span>glass partition</span></div><div className="zone-label"><span>02</span><i/> WINDOW SIDE <small>· 16 seats</small></div><div className="seat-grid">{seats.slice(16).map((seat) => <SeatButton key={seat.id} seat={seat} onClick={() => seat.status === "available" && onSelect(seat)}/>)}</div><div className="map-bottom"><span><i/> Entrance</span><span className="map-note">Choose any available seat to request it</span><span className="map-scale">NOT TO SCALE</span></div></div></section>
+    <footer className="student-footer">Questions? Contact Serenity Study Hall · Membership requests are confirmed by the room admin.</footer>
+  </main>;
+}
+
+function SeatButton({seat, onClick}:{seat:Seat;onClick:()=>void}) { return <button onClick={onClick} disabled={seat.status !== "available"} className={`seat ${seat.status}`} aria-label={`Seat ${seat.id < 17 ? "A" : "B"}-${String((seat.id - 1) % 16 + 1).padStart(2,"0")}, ${seat.status}${seat.name ? `, ${seat.name}` : ""}`} title={seat.status === "occupied" ? `Occupied by ${seat.name ?? "a student"}` : seat.status}>{seat.status === "occupied" ? <span className="seat-person">{seat.name?.split(" ").map((x)=>x[0]).join("")}</span> : seat.status === "reserved" ? <Clock3 size={13}/> : <span>{String(seat.id < 17 ? seat.id : seat.id - 16).padStart(2,"0")}</span>}</button>; }
 function Activity({color, initials, title, detail, time}:{color:string;initials:string;title:string;detail:string;time:string}) { return <div className="activity-item"><div className={`activity-icon ${color}`}>{initials}</div><div className="activity-copy"><strong>{title}</strong><span>{detail}</span></div><time>{time}</time></div>; }
