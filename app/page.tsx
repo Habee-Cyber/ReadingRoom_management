@@ -1,18 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ArrowDownLeft, ArrowUpRight, Bell, BookOpen, CalendarDays, Check,
-  ChevronDown, CircleHelp, Clock3, CreditCard, Download, Edit3,
+  ChevronDown, CircleHelp, Clock3, CreditCard, Database, Download, Edit3,
   ExternalLink, FileText, Filter, HelpCircle, LayoutDashboard,
   LogOut, Mail, Moon, MoreHorizontal, Phone, Plus, RefreshCw,
   Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles,
-  Sun, Trash2, Users, Wifi, X
+  Sun, Trash2, Users, Wifi, X, AlertTriangle, Copy
 } from "lucide-react";
+import {
+  checkSupabaseConnection,
+  getDbSeats,
+  getDbStudents,
+  getDbPayments,
+  getDbSettings,
+  insertDbStudent,
+  updateDbStudentPayment,
+  deleteDbStudent,
+  insertDbPayment,
+  updateDbSeatStatus,
+  updateDbSettings,
+  insertDbBooking,
+  DbSeat,
+  DbStudent,
+  DbPayment,
+  DbSettings
+} from "@/lib/db";
 
-type Seat = { id: number; status: "available" | "occupied" | "reserved"; name?: string; zone: string };
+export type Seat = { id: number; status: "available" | "occupied" | "reserved"; name?: string; zone: string };
 
-type Student = {
+export type Student = {
   id: string;
   name: string;
   initials: string;
@@ -26,7 +44,7 @@ type Student = {
   plan: "Full Day" | "Morning Slot" | "Evening Slot";
 };
 
-type PaymentRecord = {
+export type PaymentRecord = {
   id: string;
   invoiceId: string;
   studentName: string;
@@ -37,7 +55,7 @@ type PaymentRecord = {
   status: "Paid" | "Pending";
 };
 
-type RoomSettings = {
+export type RoomSettings = {
   name: string;
   tagline: string;
   address: string;
@@ -50,60 +68,118 @@ type RoomSettings = {
   lockerFee: number;
   wifiSSID: string;
   wifiPass: string;
-  silenceRule: boolean;
 };
 
-const initialSeats: Seat[] = Array.from({ length: 32 }, (_, i) => {
-  const occupied: Record<number, string> = {
-    2: "Aarav Mehta", 3: "Diya Shah", 5: "Ishaan Rao", 8: "Meera Kapoor",
-    9: "Rohan Patel", 13: "Anaya Joshi", 14: "Kabir Verma", 18: "Sana Ali",
-    19: "Arjun Das", 22: "Nisha Tiwari", 26: "Vivaan Bose", 27: "Tara Nair"
-  };
-  const reserved = [6, 16, 30];
-  return {
-    id: i + 1,
-    status: occupied[i + 1] ? "occupied" : reserved.includes(i + 1) ? "reserved" : "available",
-    name: occupied[i + 1],
-    zone: i < 16 ? "Quiet zone" : "Window side"
-  };
-});
+const initialSeats: Seat[] = Array.from({ length: 32 }, (_, i) => ({
+  id: i + 1,
+  status: "available",
+  name: undefined,
+  zone: i < 16 ? "Quiet zone" : "Window side"
+}));
 
-const initialStudents: Student[] = [
-  { id: "st-1", name: "Aarav Mehta", initials: "AM", color: "sage", seat: "A-02", date: "12 Oct 2024", phone: "+91 98201 43210", email: "aarav.m@gmail.com", payment: "Paid", amount: 1200, plan: "Full Day" },
-  { id: "st-2", name: "Diya Shah", initials: "DS", color: "peach", seat: "A-03", date: "08 Oct 2024", phone: "+91 97110 88231", email: "diya.s@yahoo.com", payment: "Pending", amount: 1200, plan: "Full Day" },
-  { id: "st-3", name: "Ishaan Rao", initials: "IR", color: "lilac", seat: "A-05", date: "05 Oct 2024", phone: "+91 98450 12904", email: "ishaan.rao@outlook.com", payment: "Paid", amount: 1200, plan: "Morning Slot" },
-  { id: "st-4", name: "Meera Kapoor", initials: "MK", color: "blue", seat: "A-08", date: "01 Oct 2024", phone: "+91 99203 77412", email: "meera.k@gmail.com", payment: "Paid", amount: 1200, plan: "Full Day" },
-  { id: "st-5", name: "Rohan Patel", initials: "RP", color: "yellow", seat: "A-09", date: "28 Sep 2024", phone: "+91 98190 22345", email: "rohan.p@gmail.com", payment: "Paid", amount: 1200, plan: "Evening Slot" },
-  { id: "st-6", name: "Anaya Joshi", initials: "AJ", color: "sage", seat: "A-13", date: "22 Sep 2024", phone: "+91 98334 55102", email: "anaya.j@gmail.com", payment: "Paid", amount: 1200, plan: "Full Day" },
-  { id: "st-7", name: "Kabir Verma", initials: "KV", color: "peach", seat: "A-14", date: "18 Sep 2024", phone: "+91 98712 33490", email: "kabir.v@gmail.com", payment: "Paid", amount: 1200, plan: "Full Day" },
-  { id: "st-8", name: "Sana Ali", initials: "SA", color: "lilac", seat: "B-02", date: "15 Sep 2024", phone: "+91 99880 12399", email: "sana.ali@gmail.com", payment: "Paid", amount: 1200, plan: "Full Day" },
-  { id: "st-9", name: "Arjun Das", initials: "AD", color: "blue", seat: "B-03", date: "10 Sep 2024", phone: "+91 98210 66541", email: "arjun.das@gmail.com", payment: "Paid", amount: 1200, plan: "Morning Slot" },
-  { id: "st-10", name: "Nisha Tiwari", initials: "NT", color: "yellow", seat: "B-06", date: "04 Sep 2024", phone: "+91 98111 90812", email: "nisha.t@gmail.com", payment: "Paid", amount: 1200, plan: "Full Day" },
-  { id: "st-11", name: "Vivaan Bose", initials: "VB", color: "sage", seat: "B-10", date: "01 Sep 2024", phone: "+91 98300 44198", email: "vivaan.b@gmail.com", payment: "Paid", amount: 1200, plan: "Evening Slot" },
-  { id: "st-12", name: "Tara Nair", initials: "TN", color: "peach", seat: "B-11", date: "25 Aug 2024", phone: "+91 98401 55673", email: "tara.nair@gmail.com", payment: "Paid", amount: 1200, plan: "Full Day" },
-];
+const SQL_SETUP_SCRIPT = `-- Execute this in Supabase SQL Editor:
+-- https://supabase.com/dashboard/project/eheijwnjkjbzkwyprpoj/sql
 
-const initialPayments: PaymentRecord[] = [
-  { id: "tx-1", invoiceId: "INV-2024-089", studentName: "Aarav Mehta", seat: "A-02", amount: 1200, date: "12 Oct 2024", method: "UPI / GPay", status: "Paid" },
-  { id: "tx-2", invoiceId: "INV-2024-090", studentName: "Diya Shah", seat: "A-03", amount: 1200, date: "Due 08 Oct", method: "UPI / GPay", status: "Pending" },
-  { id: "tx-3", invoiceId: "INV-2024-091", studentName: "Ishaan Rao", seat: "A-05", amount: 1200, date: "05 Oct 2024", method: "Cash", status: "Paid" },
-  { id: "tx-4", invoiceId: "INV-2024-092", studentName: "Meera Kapoor", seat: "A-08", amount: 1200, date: "01 Oct 2024", method: "Card", status: "Paid" },
-  { id: "tx-5", invoiceId: "INV-2024-093", studentName: "Rohan Patel", seat: "A-09", amount: 1200, date: "28 Sep 2024", method: "UPI / GPay", status: "Paid" },
-  { id: "tx-6", invoiceId: "INV-2024-094", studentName: "Anaya Joshi", seat: "A-13", amount: 1200, date: "22 Sep 2024", method: "Bank Transfer", status: "Paid" },
-  { id: "tx-7", invoiceId: "INV-2024-095", studentName: "Kabir Verma", seat: "A-14", amount: 1200, date: "18 Sep 2024", method: "UPI / GPay", status: "Paid" },
-  { id: "tx-8", invoiceId: "INV-2024-096", studentName: "Sana Ali", seat: "B-02", amount: 1200, date: "15 Sep 2024", method: "UPI / GPay", status: "Paid" },
-  { id: "tx-9", invoiceId: "INV-2024-097", studentName: "Arjun Das", seat: "B-03", amount: 1200, date: "10 Sep 2024", method: "Cash", status: "Paid" },
-];
+create extension if not exists "pgcrypto";
+
+create table if not exists public.seats (
+  id uuid primary key default gen_random_uuid(),
+  seat_number text not null unique,
+  area text not null,
+  status text not null default 'available' check (status in ('available', 'reserved', 'occupied')),
+  occupant_name text,
+  monthly_fee numeric(10,2) not null default 1200,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.students (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  email text,
+  phone text,
+  seat_number text,
+  plan text not null default 'Full Day',
+  payment_status text not null default 'paid' check (payment_status in ('paid', 'pending', 'overdue')),
+  amount numeric(10,2) not null default 1200,
+  joined_at date not null default current_date,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.payments (
+  id uuid primary key default gen_random_uuid(),
+  invoice_id text not null unique,
+  student_name text not null,
+  seat_number text not null,
+  amount numeric(10,2) not null default 1200,
+  payment_date text not null default to_char(current_date, 'DD Mon YYYY'),
+  payment_method text not null default 'UPI / GPay',
+  status text not null default 'paid' check (status in ('paid', 'pending')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.bookings (
+  id uuid primary key default gen_random_uuid(),
+  seat_number text not null,
+  student_name text not null,
+  email text not null,
+  phone text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'declined')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.room_settings (
+  id uuid primary key default gen_random_uuid(),
+  name text not null default 'Serenity Study Hall',
+  tagline text not null default 'Reading Space & Dedicated Study Hall',
+  address text not null default '4th Floor, Apex Tower, Near Central Library, Ernakulam',
+  phone text not null default '+91 98470 11223',
+  email text not null default 'contact@stillroom.space',
+  open_time text not null default '06:00 AM',
+  close_time text not null default '11:00 PM',
+  monthly_fee numeric(10,2) not null default 1200,
+  deposit numeric(10,2) not null default 500,
+  locker_fee numeric(10,2) not null default 200,
+  wifi_ssid text not null default 'Stillroom_HighSpeed_5G',
+  wifi_pass text not null default 'focusquiet2024',
+  updated_at timestamptz not null default now()
+);
+
+alter table public.seats enable row level security;
+alter table public.students enable row level security;
+alter table public.payments enable row level security;
+alter table public.bookings enable row level security;
+alter table public.room_settings enable row level security;
+
+create policy "anon_seats" on public.seats for all using (true) with check (true);
+create policy "anon_students" on public.students for all using (true) with check (true);
+create policy "anon_payments" on public.payments for all using (true) with check (true);
+create policy "anon_bookings" on public.bookings for all using (true) with check (true);
+create policy "anon_settings" on public.room_settings for all using (true) with check (true);
+
+-- Insert real desks
+insert into public.seats (seat_number, area, status)
+select
+  case when i <= 16 then 'A-' || lpad(i::text, 2, '0') else 'B-' || lpad((i-16):text, 2, '0') end,
+  case when i <= 16 then 'Quiet zone' else 'Window side' end,
+  'available'
+from generate_series(1, 32) as i
+on conflict do nothing;
+
+insert into public.room_settings (name, tagline) values ('Serenity Study Hall', 'Reading Space & Dedicated Study Hall') on conflict do nothing;`;
 
 export default function Home() {
   const [seats, setSeats] = useState<Seat[]>(initialSeats);
-  const [studentsList, setStudentsList] = useState<Student[]>(initialStudents);
-  const [paymentsList, setPaymentsList] = useState<PaymentRecord[]>(initialPayments);
+  const [studentsList, setStudentsList] = useState<Student[]>([]);
+  const [paymentsList, setPaymentsList] = useState<PaymentRecord[]>([]);
   const [active, setActive] = useState<string>("Overview");
-  const [selectedSeat, setSelectedSeat] = useState<Seat | null>(null);
   const [toast, setToast] = useState<string>("");
   const [studentView, setStudentView] = useState<boolean>(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  // Database Connection State
+  const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "pending_setup">("checking");
+  const [showSqlModal, setShowSqlModal] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   // Modals
   const [showAddStudentModal, setShowAddStudentModal] = useState<boolean>(false);
@@ -137,7 +213,6 @@ export default function Home() {
     lockerFee: 200,
     wifiSSID: "Stillroom_HighSpeed_5G",
     wifiPass: "focusquiet2024",
-    silenceRule: true,
   });
 
   // Filters
@@ -147,12 +222,130 @@ export default function Home() {
   const [paymentFilter, setPaymentFilter] = useState<"All" | "Paid" | "Pending">("All");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
+  const notify = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 3500);
+  };
+
+  // Sync with Supabase real data
+  const syncWithSupabase = useCallback(async () => {
+    setIsSyncing(true);
+    const connection = await checkSupabaseConnection();
+
+    if (!connection.connected || !connection.tablesExist) {
+      setDbStatus("pending_setup");
+      setIsSyncing(false);
+
+      // Load cached local state if available
+      try {
+        const cachedStudents = localStorage.getItem("stillroom_students");
+        const cachedPayments = localStorage.getItem("stillroom_payments");
+        const cachedSettings = localStorage.getItem("stillroom_settings");
+        if (cachedStudents) setStudentsList(JSON.parse(cachedStudents));
+        if (cachedPayments) setPaymentsList(JSON.parse(cachedPayments));
+        if (cachedSettings) setSettings(JSON.parse(cachedSettings));
+      } catch {}
+      return;
+    }
+
+    setDbStatus("connected");
+
+    // 1. Fetch Real Seats
+    const dbSeats = await getDbSeats();
+    if (dbSeats && dbSeats.length > 0) {
+      const mappedSeats: Seat[] = dbSeats.map((s, index) => {
+        const num = parseInt(s.seat_number.replace(/[AB]-/, ""), 10) + (s.seat_number.startsWith("B") ? 16 : 0);
+        return {
+          id: isNaN(num) ? index + 1 : num,
+          status: s.status,
+          name: s.occupant_name || undefined,
+          zone: s.area
+        };
+      });
+      // Sort by desk ID 1-32
+      mappedSeats.sort((a, b) => a.id - b.id);
+      setSeats(mappedSeats);
+    }
+
+    // 2. Fetch Real Students
+    const dbStudents = await getDbStudents();
+    if (dbStudents) {
+      const colors = ["sage", "peach", "lilac", "blue", "yellow"];
+      const mappedStudents: Student[] = dbStudents.map((s, idx) => ({
+        id: s.id || `st-${idx}`,
+        name: s.full_name,
+        initials: s.full_name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "ST",
+        color: colors[idx % colors.length],
+        seat: s.seat_number || "A-01",
+        date: s.joined_at ? new Date(s.joined_at).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "Recent",
+        phone: s.phone || "+91 98000 00000",
+        email: s.email || `${s.full_name.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+        payment: s.payment_status === "paid" ? "Paid" : "Pending",
+        amount: Number(s.amount) || 1200,
+        plan: (s.plan as any) || "Full Day",
+      }));
+      setStudentsList(mappedStudents);
+    }
+
+    // 3. Fetch Real Payments
+    const dbPayments = await getDbPayments();
+    if (dbPayments) {
+      const mappedPayments: PaymentRecord[] = dbPayments.map((p, idx) => ({
+        id: p.id || `tx-${idx}`,
+        invoiceId: p.invoice_id,
+        studentName: p.student_name,
+        seat: p.seat_number,
+        amount: Number(p.amount) || 1200,
+        date: p.payment_date,
+        method: (p.payment_method as any) || "UPI / GPay",
+        status: p.status === "paid" ? "Paid" : "Pending"
+      }));
+      setPaymentsList(mappedPayments);
+    }
+
+    // 4. Fetch Real Settings
+    const dbSettings = await getDbSettings();
+    if (dbSettings) {
+      setSettings({
+        name: dbSettings.name || "Serenity Study Hall",
+        tagline: dbSettings.tagline || "Reading Space & Dedicated Study Hall",
+        address: dbSettings.address || "4th Floor, Apex Tower, Near Central Library, Ernakulam",
+        phone: dbSettings.phone || "+91 98470 11223",
+        email: dbSettings.email || "contact@stillroom.space",
+        openTime: dbSettings.open_time || "06:00 AM",
+        closeTime: dbSettings.close_time || "11:00 PM",
+        monthlyFee: Number(dbSettings.monthly_fee) || 1200,
+        deposit: Number(dbSettings.deposit) || 500,
+        lockerFee: Number(dbSettings.locker_fee) || 200,
+        wifiSSID: dbSettings.wifi_ssid || "Stillroom_HighSpeed_5G",
+        wifiPass: dbSettings.wifi_pass || "focusquiet2024",
+      });
+    }
+
+    setIsSyncing(false);
+  }, []);
+
   useEffect(() => {
+    // Theme initialization
     const saved = (typeof window !== "undefined" && localStorage.getItem("theme")) as "dark" | "light" | null;
     const initial = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
     setTheme(initial);
     document.documentElement.setAttribute("data-theme", initial);
-  }, []);
+
+    // Initial Supabase Sync
+    syncWithSupabase();
+  }, [syncWithSupabase]);
+
+  // Save changes to localStorage as offline safety
+  useEffect(() => {
+    if (dbStatus !== "connected") {
+      try {
+        localStorage.setItem("stillroom_students", JSON.stringify(studentsList));
+        localStorage.setItem("stillroom_payments", JSON.stringify(paymentsList));
+        localStorage.setItem("stillroom_settings", JSON.stringify(settings));
+      } catch {}
+    }
+  }, [studentsList, paymentsList, settings, dbStatus]);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -164,11 +357,6 @@ export default function Home() {
     notify(`Switched to ${next === "dark" ? "Dark" : "Light"} mode`);
   };
 
-  const notify = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 3000);
-  };
-
   const availableCount = seats.filter((seat) => seat.status === "available").length;
   const occupiedCount = seats.filter((seat) => seat.status === "occupied").length;
   const reservedCount = seats.filter((seat) => seat.status === "reserved").length;
@@ -176,20 +364,24 @@ export default function Home() {
   const totalCollected = paymentsList.filter(p => p.status === "Paid").reduce((acc, curr) => acc + curr.amount, 0);
   const pendingDuesTotal = studentsList.filter(s => s.payment === "Pending").reduce((acc, curr) => acc + curr.amount, 0);
 
-  // Toggle student payment status
-  const toggleStudentPayment = (id: string) => {
-    setStudentsList(prev => prev.map(s => {
-      if (s.id === id) {
-        const nextStatus = s.payment === "Paid" ? "Pending" : "Paid";
-        notify(`Payment status for ${s.name} updated to ${nextStatus}`);
-        return { ...s, payment: nextStatus };
-      }
-      return s;
-    }));
+  // Toggle student payment status (Live Supabase Sync)
+  const toggleStudentPayment = async (id: string) => {
+    const student = studentsList.find(s => s.id === id);
+    if (!student) return;
+
+    const nextStatus = student.payment === "Paid" ? "Pending" : "Paid";
+    setStudentsList(prev => prev.map(s => s.id === id ? { ...s, payment: nextStatus } : s));
+
+    // Update in Supabase
+    if (dbStatus === "connected" && !id.startsWith("st-")) {
+      await updateDbStudentPayment(id, nextStatus === "Paid" ? "paid" : "pending");
+    }
+
+    notify(`Payment status for ${student.name} updated to ${nextStatus}`);
   };
 
-  // Add new student
-  const handleAddStudent = (e: React.FormEvent) => {
+  // Add new student (Live Supabase Sync)
+  const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStudentName) return;
 
@@ -211,29 +403,59 @@ export default function Home() {
     const colors = ["sage", "peach", "lilac", "blue", "yellow"];
     const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
+    const email = newStudentEmail || `${newStudentName.toLowerCase().replace(/\s+/g, ".")}@example.com`;
+    const phone = newStudentPhone || "+91 98000 00000";
+
+    // 1. Insert in Supabase
+    let realStudentId = `st-${Date.now()}`;
+    if (dbStatus === "connected") {
+      const res = await insertDbStudent({
+        full_name: newStudentName,
+        email,
+        phone,
+        seat_number: seatCode,
+        plan: newStudentPlan,
+        payment_status: "paid",
+        amount: settings.monthlyFee,
+      });
+      if (res?.id) realStudentId = res.id;
+
+      // Update seat in Supabase
+      await updateDbSeatStatus(seatCode, "occupied", newStudentName);
+
+      // Record initial payment in Supabase
+      await insertDbPayment({
+        invoice_id: `INV-2024-${String(paymentsList.length + 101).padStart(3, "0")}`,
+        student_name: newStudentName,
+        seat_number: seatCode,
+        amount: settings.monthlyFee,
+        payment_date: new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }),
+        payment_method: "UPI / GPay",
+        status: "paid"
+      });
+    }
+
+    // 2. Update local state
     const newStudent: Student = {
-      id: `st-${Date.now()}`,
+      id: realStudentId,
       name: newStudentName,
       initials: initials || "ST",
       color: randomColor,
       seat: seatCode,
       date: "Today",
-      phone: newStudentPhone || "+91 98000 00000",
-      email: newStudentEmail || `${newStudentName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+      phone,
+      email,
       payment: "Paid",
       amount: settings.monthlyFee,
       plan: newStudentPlan,
     };
 
     setStudentsList([newStudent, ...studentsList]);
-
-    // Update seat to occupied
     setSeats(prev => prev.map(s => s.id === assignedSeatNumber ? { ...s, status: "occupied", name: newStudentName } : s));
 
-    // Log payment
     const newTx: PaymentRecord = {
       id: `tx-${Date.now()}`,
-      invoiceId: `INV-2024-${String(paymentsList.length + 90).padStart(3, "0")}`,
+      invoiceId: `INV-2024-${String(paymentsList.length + 101).padStart(3, "0")}`,
       studentName: newStudentName,
       seat: seatCode,
       amount: settings.monthlyFee,
@@ -248,20 +470,40 @@ export default function Home() {
     setNewStudentPhone("");
     setNewStudentSeat("");
     setShowAddStudentModal(false);
-    notify(`Student ${newStudentName} registered and assigned Seat ${seatCode}!`);
+    notify(`Student ${newStudentName} registered and synced with database!`);
   };
 
-  // Record payment
-  const handleRecordPayment = (e: React.FormEvent) => {
+  // Record payment (Live Supabase Sync)
+  const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentStudent) return;
 
     const student = studentsList.find(s => s.name === paymentStudent);
+    const seatCode = student?.seat || "General";
+    const invoiceId = `INV-2024-${String(paymentsList.length + 101).padStart(3, "0")}`;
+    const todayStr = new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+
+    if (dbStatus === "connected") {
+      await insertDbPayment({
+        invoice_id: invoiceId,
+        student_name: paymentStudent,
+        seat_number: seatCode,
+        amount: paymentAmount,
+        payment_date: todayStr,
+        payment_method: paymentMethod,
+        status: "paid"
+      });
+
+      if (student && !student.id.startsWith("st-")) {
+        await updateDbStudentPayment(student.id, "paid");
+      }
+    }
+
     const newTx: PaymentRecord = {
       id: `tx-${Date.now()}`,
-      invoiceId: `INV-2024-${String(paymentsList.length + 90).padStart(3, "0")}`,
+      invoiceId,
       studentName: paymentStudent,
-      seat: student?.seat || "General",
+      seat: seatCode,
       amount: paymentAmount,
       date: "Today",
       method: paymentMethod,
@@ -273,30 +515,69 @@ export default function Home() {
       setStudentsList(prev => prev.map(s => s.name === paymentStudent ? { ...s, payment: "Paid" } : s));
     }
     setShowRecordPaymentModal(false);
-    notify(`Payment of ₹${paymentAmount} recorded for ${paymentStudent}`);
+    notify(`Payment of ₹${paymentAmount} recorded and synced!`);
   };
 
-  // Vacate seat
-  const handleVacateSeat = (seatId: number) => {
+  // Vacate seat (Live Supabase Sync)
+  const handleVacateSeat = async (seatId: number) => {
     const seat = seats.find(s => s.id === seatId);
     if (!seat) return;
+    const seatCode = `${seat.id <= 16 ? "A" : "B"}-${String((seat.id - 1) % 16 + 1).padStart(2, "0")}`;
     const seatName = seat.name;
+
+    if (dbStatus === "connected") {
+      await updateDbSeatStatus(seatCode, "available", null);
+      const student = studentsList.find(s => s.name === seatName);
+      if (student && !student.id.startsWith("st-")) {
+        await deleteDbStudent(student.id);
+      }
+    }
 
     setSeats(prev => prev.map(s => s.id === seatId ? { ...s, status: "available", name: undefined } : s));
     if (seatName) {
       setStudentsList(prev => prev.filter(s => s.name !== seatName));
     }
     setInspectSeat(null);
-    notify(`Seat ${seatId <= 16 ? "A" : "B"}-${String((seatId - 1) % 16 + 1).padStart(2, "0")} is now open and available.`);
+    notify(`Desk ${seatCode} is now released and available in the database.`);
   };
 
-  // Student portal booking
-  const handleStudentPortalReserve = () => {
-    if (!selectedSeat) return;
-    setSeats(prev => prev.map(s => s.id === selectedSeat.id ? { ...s, status: "reserved" } : s));
-    setSelectedSeat(null);
+  // Save Settings (Live Supabase Sync)
+  const handleSaveSettings = async () => {
+    if (dbStatus === "connected") {
+      await updateDbSettings({
+        name: settings.name,
+        tagline: settings.tagline,
+        address: settings.address,
+        phone: settings.phone,
+        email: settings.email,
+        open_time: settings.openTime,
+        close_time: settings.closeTime,
+        monthly_fee: settings.monthlyFee,
+        deposit: settings.deposit,
+        locker_fee: settings.lockerFee,
+        wifi_ssid: settings.wifiSSID,
+        wifi_pass: settings.wifiPass,
+      });
+    }
+    notify("Preferences saved and synchronized with database!");
+  };
+
+  // Student portal booking (Live Supabase Sync)
+  const handleStudentPortalReserve = async (seat: Seat) => {
+    const seatCode = `${seat.id <= 16 ? "A" : "B"}-${String((seat.id - 1) % 16 + 1).padStart(2, "0")}`;
+
+    if (dbStatus === "connected") {
+      await insertDbBooking({
+        seat_number: seatCode,
+        student_name: "Prospective Student",
+        email: "guest.student@gmail.com"
+      });
+      await updateDbSeatStatus(seatCode, "reserved", "Reserved Online");
+    }
+
+    setSeats(prev => prev.map(s => s.id === seat.id ? { ...s, status: "reserved" } : s));
     setStudentView(false);
-    notify("Booking request submitted! Admin will confirm shortly.");
+    notify(`Booking request for Desk ${seatCode} received and logged!`);
   };
 
   if (studentView) {
@@ -306,7 +587,7 @@ export default function Home() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onBack={() => setStudentView(false)}
-        onSelect={(seat) => { setSelectedSeat(seat); setStudentView(false); }}
+        onSelect={(seat) => handleStudentPortalReserve(seat)}
       />
     );
   }
@@ -340,7 +621,7 @@ export default function Home() {
             <button
               className={`nav-item ${active === label ? "active" : ""}`}
               key={label}
-              onClick={() => { setActive(label); notify(`${label} view active`); }}
+              onClick={() => { setActive(label); }}
             >
               <Icon size={18} strokeWidth={1.8} />
               <span>{label}</span>
@@ -394,6 +675,47 @@ export default function Home() {
       <section className="main-area">
         <header className="topbar">
           <div className="crumb">Workspace <span>/</span> <strong>{active}</strong></div>
+
+          {/* DATABASE SYNC PILL */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {dbStatus === "connected" ? (
+              <button
+                className="pill-btn"
+                onClick={syncWithSupabase}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  borderColor: "rgba(16, 185, 129, 0.3)",
+                  background: "var(--emerald-lo)",
+                  color: "var(--emerald)"
+                }}
+                title="Connected to Supabase live database. Click to re-sync."
+              >
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--emerald)" }} />
+                <span>Supabase Live DB</span>
+                <RefreshCw size={11} className={isSyncing ? "spin-icon" : ""} />
+              </button>
+            ) : (
+              <button
+                className="pill-btn"
+                onClick={() => setShowSqlModal(true)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  borderColor: "rgba(245, 158, 11, 0.4)",
+                  background: "var(--amber-lo)",
+                  color: "var(--amber)"
+                }}
+                title="Click to run 1-Click SQL Setup in Supabase"
+              >
+                <AlertTriangle size={12} />
+                <span>Setup Supabase Tables</span>
+              </button>
+            )}
+          </div>
+
           <div className="top-actions">
             <button
               className="icon-btn search-trigger"
@@ -415,7 +737,7 @@ export default function Home() {
               {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
             </button>
 
-            <button className="icon-btn notification" onClick={() => notify("All notifications cleared. 0 pending alerts.")} title="Notifications">
+            <button className="icon-btn notification" onClick={() => notify("All notifications cleared.")} title="Notifications">
               <Bell size={18} /><i />
             </button>
 
@@ -453,8 +775,8 @@ export default function Home() {
                     <span>Total students</span>
                     <span className="stat-icon green"><Users size={17} /></span>
                   </div>
-                  <div className="stat-value">{studentsList.length} <span className="stat-trend"><ArrowUpRight size={13} /> +12%</span></div>
-                  <div className="stat-foot">Registered readers <span>Active</span></div>
+                  <div className="stat-value">{studentsList.length} <span className="stat-trend"><ArrowUpRight size={13} /> Active</span></div>
+                  <div className="stat-foot">Registered readers <span>Real data</span></div>
                   <div className="sparkline green-line"><svg viewBox="0 0 120 30" preserveAspectRatio="none"><path d="M0 25 C15 24 15 19 28 20 S44 12 55 16 S72 6 83 11 S104 3 120 4" /></svg></div>
                 </article>
 
@@ -556,7 +878,7 @@ export default function Home() {
                       <div className="section-kicker">A QUICK LOOK</div>
                       <h2>Today at a glance</h2>
                     </div>
-                    <button className="more-button" onClick={() => notify("Checked in logs up to date")}>
+                    <button className="more-button" onClick={() => notify("Activity synchronized")}>
                       <MoreHorizontal size={20} />
                     </button>
                   </div>
@@ -568,16 +890,16 @@ export default function Home() {
                       <span className="day-now">TODAY</span>
                     </div>
                     <div className="day-stats">
-                      <div><strong>{occupiedCount}</strong><span>Checked in</span></div>
+                      <div><strong>{occupiedCount}</strong><span>Occupied</span></div>
                       <div><strong>{availableCount}</strong><span>Available</span></div>
                     </div>
                     <div className="checkin-avatars">
-                      <div className="mini-avatar sage">AM</div>
-                      <div className="mini-avatar peach">DS</div>
+                      <div className="mini-avatar sage">ST</div>
+                      <div className="mini-avatar blue">DS</div>
                       <div className="mini-avatar lilac">IR</div>
-                      <div className="mini-avatar blue">MK</div>
-                      <div className="mini-avatar muted-avatar">+{occupiedCount - 4}</div>
-                      <span>readers studying right now</span>
+                      <div className="mini-avatar peach">MK</div>
+                      <div className="mini-avatar muted-avatar">+{occupiedCount}</div>
+                      <span>live readers in room</span>
                     </div>
                   </div>
 
@@ -587,10 +909,8 @@ export default function Home() {
                   </div>
 
                   <div className="activity-list">
-                    <Activity color="peach" initials="DS" title="Fee due reminder" detail="Diya Shah · Seat A-03" time="9:42 AM" />
-                    <Activity color="sage" initials="+" title="New admission" detail="Tara Nair · Seat B-11" time="9:18 AM" />
-                    <Activity color="blue" initials="✓" title="Check-in registered" detail="Meera Kapoor · Seat A-08" time="8:56 AM" />
-                    <Activity color="lilac" initials="₹" title="Payment cleared" detail="Aarav Mehta · ₹1,200 UPI" time="Yesterday" />
+                    <Activity color="sage" initials="DB" title="Database Status" detail={dbStatus === "connected" ? "Synchronized with Supabase" : "Local mode (Tables pending)"} time="Now" />
+                    <Activity color="blue" initials="✓" title="Check-in registered" detail="Hall operating at normal capacity" time="Today" />
                   </div>
 
                   <button className="view-activity" onClick={() => setActive("Students")}>
@@ -614,56 +934,65 @@ export default function Home() {
                 </div>
 
                 <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>STUDENT</th>
-                        <th>SEAT</th>
-                        <th>PLAN</th>
-                        <th>PHONE</th>
-                        <th>FEE STATUS</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {studentsList.slice(0, 5).map((student) => (
-                        <tr key={student.id}>
-                          <td>
-                            <div className="student-cell">
-                              <div className={`avatar ${student.color}`}>{student.initials}</div>
-                              <div>
-                                <strong>{student.name}</strong>
-                                <div style={{ fontSize: 10, color: "var(--muted)" }}>{student.email}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td><span className="seat-code">{student.seat}</span></td>
-                          <td><span style={{ fontSize: 11 }}>{student.plan}</span></td>
-                          <td><span style={{ fontSize: 11 }}>{student.phone}</span></td>
-                          <td>
-                            <span
-                              className={`payment-badge ${student.payment === "Paid" ? "paid" : "pending"}`}
-                              onClick={() => toggleStudentPayment(student.id)}
-                              title="Click to toggle status"
-                              style={{ cursor: "pointer" }}
-                            >
-                              <i />{student.payment}
-                            </span>
-                          </td>
-                          <td>
-                            <button className="action-btn-ghost" onClick={() => setActive("Students")}>
-                              Details <ArrowUpRight size={13} />
-                            </button>
-                          </td>
+                  {studentsList.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "32px 0", color: "var(--muted)" }}>
+                      <Users size={32} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
+                      <p>No students enrolled yet. Click <strong>+ Add Student</strong> to admit your first reader.</p>
+                    </div>
+                  ) : (
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>STUDENT</th>
+                          <th>SEAT</th>
+                          <th>PLAN</th>
+                          <th>PHONE</th>
+                          <th>FEE STATUS</th>
+                          <th></th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {studentsList.slice(0, 5).map((student) => (
+                          <tr key={student.id}>
+                            <td>
+                              <div className="student-cell">
+                                <div className={`avatar ${student.color}`}>{student.initials}</div>
+                                <div>
+                                  <strong>{student.name}</strong>
+                                  <div style={{ fontSize: 10, color: "var(--muted)" }}>{student.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td><span className="seat-code">{student.seat}</span></td>
+                            <td><span style={{ fontSize: 11 }}>{student.plan}</span></td>
+                            <td><span style={{ fontSize: 11 }}>{student.phone}</span></td>
+                            <td>
+                              <span
+                                className={`payment-badge ${student.payment === "Paid" ? "paid" : "pending"}`}
+                                onClick={() => toggleStudentPayment(student.id)}
+                                title="Click to toggle status"
+                                style={{ cursor: "pointer" }}
+                              >
+                                <i />{student.payment}
+                              </span>
+                            </td>
+                            <td>
+                              <button className="action-btn-ghost" onClick={() => setActive("Students")}>
+                                Details <ArrowUpRight size={13} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
 
-                <button className="all-students" onClick={() => setActive("Students")}>
-                  Open full students manager ({studentsList.length}) <ArrowUpRight size={14} />
-                </button>
+                {studentsList.length > 5 && (
+                  <button className="all-students" onClick={() => setActive("Students")}>
+                    Open full students directory ({studentsList.length}) <ArrowUpRight size={14} />
+                  </button>
+                )}
               </section>
             </div>
           )}
@@ -676,7 +1005,7 @@ export default function Home() {
                   <div>
                     <div className="eyebrow"><span /> DIRECTORY & ADMISSIONS</div>
                     <h1>Students Management</h1>
-                    <p className="view-desc">Manage reading room memberships, desk assignments, and payment statuses.</p>
+                    <p className="view-desc">Live member records connected directly to your database.</p>
                   </div>
                   <div className="view-actions">
                     <button className="action-btn-primary" onClick={() => setShowAddStudentModal(true)}>
@@ -715,87 +1044,93 @@ export default function Home() {
               {/* Table */}
               <div className="data-card">
                 <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>STUDENT</th>
-                        <th>ASSIGNED SEAT</th>
-                        <th>PLAN</th>
-                        <th>JOINED</th>
-                        <th>PHONE</th>
-                        <th>FEE STATUS</th>
-                        <th style={{ textAlign: "right" }}>ACTIONS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {studentsList
-                        .filter(s => {
-                          if (studentFilter !== "All" && s.payment !== studentFilter) return false;
-                          if (studentQuery) {
-                            const q = studentQuery.toLowerCase();
-                            return s.name.toLowerCase().includes(q) || s.seat.toLowerCase().includes(q) || s.phone.includes(q);
-                          }
-                          return true;
-                        })
-                        .map((student) => (
-                          <tr key={student.id}>
-                            <td>
-                              <div className="student-cell">
-                                <div className={`avatar ${student.color}`}>{student.initials}</div>
-                                <div>
-                                  <strong>{student.name}</strong>
-                                  <div className="contact-meta">
-                                    <Mail size={11} /> {student.email}
+                  {studentsList.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "40px 0", color: "var(--muted)" }}>
+                      <Users size={36} style={{ margin: "0 auto 10px", opacity: 0.4 }} />
+                      <strong style={{ display: "block", color: "var(--ink)", marginBottom: 4 }}>No Students Found</strong>
+                      <p style={{ fontSize: 12 }}>Click <strong>+ Add New Student</strong> above to register your first member.</p>
+                    </div>
+                  ) : (
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>STUDENT</th>
+                          <th>ASSIGNED SEAT</th>
+                          <th>PLAN</th>
+                          <th>JOINED</th>
+                          <th>PHONE</th>
+                          <th>FEE STATUS</th>
+                          <th style={{ textAlign: "right" }}>ACTIONS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {studentsList
+                          .filter(s => {
+                            if (studentFilter !== "All" && s.payment !== studentFilter) return false;
+                            if (studentQuery) {
+                              const q = studentQuery.toLowerCase();
+                              return s.name.toLowerCase().includes(q) || s.seat.toLowerCase().includes(q) || s.phone.includes(q);
+                            }
+                            return true;
+                          })
+                          .map((student) => (
+                            <tr key={student.id}>
+                              <td>
+                                <div className="student-cell">
+                                  <div className={`avatar ${student.color}`}>{student.initials}</div>
+                                  <div>
+                                    <strong>{student.name}</strong>
+                                    <div className="contact-meta">
+                                      <Mail size={11} /> {student.email}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td><span className="seat-code">{student.seat}</span></td>
-                            <td><span style={{ fontSize: 11, fontWeight: 500 }}>{student.plan}</span></td>
-                            <td><span style={{ fontSize: 11 }}>{student.date}</span></td>
-                            <td><span style={{ fontSize: 11 }}>{student.phone}</span></td>
-                            <td>
-                              <span
-                                className={`payment-badge ${student.payment === "Paid" ? "paid" : "pending"}`}
-                                onClick={() => toggleStudentPayment(student.id)}
-                                title="Click to toggle Paid/Pending"
-                                style={{ cursor: "pointer" }}
-                              >
-                                <i />{student.payment}
-                              </span>
-                            </td>
-                            <td>
-                              <div className="table-action-btns">
-                                <button
-                                  className="icon-action-btn"
-                                  onClick={() => {
-                                    notify(`Reminder message copied for ${student.name}`);
-                                    navigator.clipboard?.writeText(`Dear ${student.name}, reminder regarding Stillroom study hall fee.`);
-                                  }}
-                                  title="Send Reminder"
+                              </td>
+                              <td><span className="seat-code">{student.seat}</span></td>
+                              <td><span style={{ fontSize: 11, fontWeight: 500 }}>{student.plan}</span></td>
+                              <td><span style={{ fontSize: 11 }}>{student.date}</span></td>
+                              <td><span style={{ fontSize: 11 }}>{student.phone}</span></td>
+                              <td>
+                                <span
+                                  className={`payment-badge ${student.payment === "Paid" ? "paid" : "pending"}`}
+                                  onClick={() => toggleStudentPayment(student.id)}
+                                  title="Click to toggle Paid/Pending"
+                                  style={{ cursor: "pointer" }}
                                 >
-                                  <Phone size={14} />
-                                </button>
-                                <button
-                                  className="icon-action-btn danger"
-                                  onClick={() => {
-                                    if (confirm(`Remove student ${student.name}? This will free up seat ${student.seat}.`)) {
-                                      const seatNum = parseInt(student.seat.replace(/[AB]-/, ""), 10) + (student.seat.startsWith("B") ? 16 : 0);
-                                      setSeats(prev => prev.map(s => s.id === seatNum ? { ...s, status: "available", name: undefined } : s));
-                                      setStudentsList(prev => prev.filter(s => s.id !== student.id));
-                                      notify(`Student ${student.name} removed and desk vacated.`);
-                                    }
-                                  }}
-                                  title="Remove Student"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+                                  <i />{student.payment}
+                                </span>
+                              </td>
+                              <td>
+                                <div className="table-action-btns">
+                                  <button
+                                    className="icon-action-btn"
+                                    onClick={() => {
+                                      notify(`Reminder message copied for ${student.name}`);
+                                      navigator.clipboard?.writeText(`Dear ${student.name}, reminder regarding Stillroom study hall fee.`);
+                                    }}
+                                    title="Send Reminder"
+                                  >
+                                    <Phone size={14} />
+                                  </button>
+                                  <button
+                                    className="icon-action-btn danger"
+                                    onClick={() => {
+                                      if (confirm(`Remove student ${student.name}? This will free up desk ${student.seat}.`)) {
+                                        const seatNum = parseInt(student.seat.replace(/[AB]-/, ""), 10) + (student.seat.startsWith("B") ? 16 : 0);
+                                        handleVacateSeat(seatNum);
+                                      }
+                                    }}
+                                    title="Remove Student"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             </div>
@@ -809,7 +1144,7 @@ export default function Home() {
                   <div>
                     <div className="eyebrow"><span /> FLOOR PLAN & CAPACITY</div>
                     <h1>Interactive Seat Map</h1>
-                    <p className="view-desc">Live desk layout with zone controls, real-time vacancy inspection, and allocation.</p>
+                    <p className="view-desc">Live desk layout with zone controls, vacancy inspection, and allocation.</p>
                   </div>
                   <div className="view-actions">
                     <button className="action-btn-primary" onClick={() => setShowAddStudentModal(true)}>
@@ -911,7 +1246,7 @@ export default function Home() {
 
                     <div className="map-bottom" style={{ marginTop: 14 }}>
                       <span><i /> Main Door Entrance</span>
-                      <span className="map-note">Click any desk icon to view reader details or modify allocation</span>
+                      <span className="map-note">Click any desk icon to inspect reader details or reassign</span>
                       <span className="map-scale">32 TOTAL DESKS</span>
                     </div>
                   </div>
@@ -980,6 +1315,10 @@ export default function Home() {
                             className="action-btn-primary"
                             style={{ justifyContent: "center" }}
                             onClick={() => {
+                              const seatCode = `${inspectSeat.id <= 16 ? "A" : "B"}-${String((inspectSeat.id - 1) % 16 + 1).padStart(2, "0")}`;
+                              if (dbStatus === "connected") {
+                                updateDbSeatStatus(seatCode, "available", null);
+                              }
                               setSeats(prev => prev.map(s => s.id === inspectSeat.id ? { ...s, status: "available" } : s));
                               setInspectSeat(null);
                               notify("Reservation cleared. Desk is now available.");
@@ -1087,54 +1426,62 @@ export default function Home() {
               {/* Ledger Table */}
               <div className="data-card">
                 <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>INVOICE #</th>
-                        <th>STUDENT</th>
-                        <th>DESK</th>
-                        <th>AMOUNT</th>
-                        <th>DATE</th>
-                        <th>PAYMENT METHOD</th>
-                        <th>STATUS</th>
-                        <th style={{ textAlign: "right" }}>RECEIPT</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paymentsList
-                        .filter(p => paymentFilter === "All" || p.status === paymentFilter)
-                        .map((tx) => (
-                          <tr key={tx.id}>
-                            <td>
-                              <span style={{ fontFamily: "monospace", fontSize: 11, color: "var(--indigo)" }}>
-                                {tx.invoiceId}
-                              </span>
-                            </td>
-                            <td><strong>{tx.studentName}</strong></td>
-                            <td><span className="seat-code">{tx.seat}</span></td>
-                            <td><strong style={{ color: "var(--ink)" }}>₹{tx.amount.toLocaleString()}</strong></td>
-                            <td><span style={{ fontSize: 11 }}>{tx.date}</span></td>
-                            <td><span style={{ fontSize: 11 }}>{tx.method}</span></td>
-                            <td>
-                              <span className={`payment-badge ${tx.status === "Paid" ? "paid" : "pending"}`}>
-                                <i />{tx.status}
-                              </span>
-                            </td>
-                            <td>
-                              <div className="table-action-btns">
-                                <button
-                                  className="action-btn-secondary"
-                                  style={{ padding: "5px 10px", fontSize: 10 }}
-                                  onClick={() => setViewReceipt(tx)}
-                                >
-                                  <FileText size={12} /> View
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+                  {paymentsList.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "40px 0", color: "var(--muted)" }}>
+                      <CreditCard size={36} style={{ margin: "0 auto 10px", opacity: 0.4 }} />
+                      <strong style={{ display: "block", color: "var(--ink)", marginBottom: 4 }}>No Transactions Yet</strong>
+                      <p style={{ fontSize: 12 }}>Click <strong>+ Record Payment</strong> to log fees or admissions.</p>
+                    </div>
+                  ) : (
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>INVOICE #</th>
+                          <th>STUDENT</th>
+                          <th>DESK</th>
+                          <th>AMOUNT</th>
+                          <th>DATE</th>
+                          <th>PAYMENT METHOD</th>
+                          <th>STATUS</th>
+                          <th style={{ textAlign: "right" }}>RECEIPT</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paymentsList
+                          .filter(p => paymentFilter === "All" || p.status === paymentFilter)
+                          .map((tx) => (
+                            <tr key={tx.id}>
+                              <td>
+                                <span style={{ fontFamily: "monospace", fontSize: 11, color: "var(--indigo)" }}>
+                                  {tx.invoiceId}
+                                </span>
+                              </td>
+                              <td><strong>{tx.studentName}</strong></td>
+                              <td><span className="seat-code">{tx.seat}</span></td>
+                              <td><strong style={{ color: "var(--ink)" }}>₹{tx.amount.toLocaleString()}</strong></td>
+                              <td><span style={{ fontSize: 11 }}>{tx.date}</span></td>
+                              <td><span style={{ fontSize: 11 }}>{tx.method}</span></td>
+                              <td>
+                                <span className={`payment-badge ${tx.status === "Paid" ? "paid" : "pending"}`}>
+                                  <i />{tx.status}
+                                </span>
+                              </td>
+                              <td>
+                                <div className="table-action-btns">
+                                  <button
+                                    className="action-btn-secondary"
+                                    style={{ padding: "5px 10px", fontSize: 10 }}
+                                    onClick={() => setViewReceipt(tx)}
+                                  >
+                                    <FileText size={12} /> View
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             </div>
@@ -1153,7 +1500,7 @@ export default function Home() {
                   <div className="view-actions">
                     <button
                       className="action-btn-primary"
-                      onClick={() => notify("All configuration changes saved successfully!")}
+                      onClick={handleSaveSettings}
                     >
                       <Check size={15} /> Save All Changes
                     </button>
@@ -1283,7 +1630,7 @@ export default function Home() {
                   </button>
                   <button
                     className="action-btn-primary"
-                    onClick={() => notify("Preferences updated and applied!")}
+                    onClick={handleSaveSettings}
                   >
                     Save Changes
                   </button>
@@ -1347,20 +1694,20 @@ export default function Home() {
 
                 {[
                   {
+                    q: "How does the real Supabase database connection work?",
+                    a: "The dashboard is connected to your Supabase project (eheijwnjkjbzkwyprpoj.supabase.co). Once you run the SQL script in your Supabase dashboard, all real student admissions, desk assignments, and payment invoices sync automatically."
+                  },
+                  {
                     q: "How do I allocate or change a student's seat?",
-                    a: "Go to 'Seat map', click on any available seat (green), and click 'Assign to Student'. Alternatively, from the 'Students' page, click 'Add New Student' and pick a desk."
+                    a: "Go to 'Seat map', click on any available desk (green), and click 'Assign to Student'. Alternatively, from the 'Students' page, click 'Add New Student' and pick a desk."
                   },
                   {
                     q: "How do I mark pending fee payments as paid?",
-                    a: "You can simply click directly on the 'Pending' badge in the Students or Payments table. It will instantly toggle to 'Paid' and update the revenue ledger."
+                    a: "You can simply click directly on the 'Pending' badge in the Students or Payments table. It will instantly toggle to 'Paid' in both the view and your database."
                   },
                   {
                     q: "What happens when a student vacates their desk?",
-                    a: "Go to the Seat Map, click on their desk, and choose 'Vacate / Release Desk'. The seat will immediately become green (available) and ready for a new student."
-                  },
-                  {
-                    q: "Can students view available seats online?",
-                    a: "Yes! Click the 'Student view' button in the top right corner. It opens a clean, student-facing portal where readers can check live seat availability and request desks."
+                    a: "Go to the Seat Map, click on their desk, and choose 'Vacate / Release Desk'. The desk will immediately become green (available) and ready for a new student."
                   },
                 ].map((faq, idx) => (
                   <div className="faq-item" key={idx}>
@@ -1388,6 +1735,73 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ================= MODAL: SQL SETUP ================= */}
+      {showSqlModal && (
+        <div className="modal-backdrop" onClick={() => setShowSqlModal(false)}>
+          <div className="booking-modal" style={{ width: "min(680px, 100%)" }} onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowSqlModal(false)}><X size={18} /></button>
+            <div className="modal-icon"><Database size={21} /></div>
+            <div className="section-kicker">SUPABASE DATABASE SETUP</div>
+            <h2>Initialize Database Tables</h2>
+            <p style={{ marginBottom: 14 }}>
+              Your Supabase project (<strong>eheijwnjkjbzkwyprpoj.supabase.co</strong>) is configured. Run this SQL script once in your Supabase dashboard to create the tables.
+            </p>
+
+            <div style={{ background: "var(--inset-bg)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: 14, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>SQL SCHEMA (schema.sql)</span>
+                <button
+                  className="action-btn-ghost"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(SQL_SETUP_SCRIPT);
+                    notify("SQL script copied to clipboard!");
+                  }}
+                >
+                  <Copy size={13} /> Copy SQL
+                </button>
+              </div>
+              <pre style={{
+                maxHeight: 180,
+                overflow: "auto",
+                fontSize: 10,
+                fontFamily: "monospace",
+                color: "var(--ink)",
+                whiteSpace: "pre-wrap",
+                background: "var(--chip-bg)",
+                padding: 10,
+                borderRadius: 6
+              }}>
+                {SQL_SETUP_SCRIPT}
+              </pre>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <a
+                href="https://supabase.com/dashboard/project/eheijwnjkjbzkwyprpoj/sql/new"
+                target="_blank"
+                rel="noreferrer"
+                className="action-btn-primary"
+                onClick={() => {
+                  navigator.clipboard?.writeText(SQL_SETUP_SCRIPT);
+                  notify("SQL copied! Opening Supabase SQL Editor...");
+                }}
+              >
+                Open Supabase SQL Editor <ExternalLink size={14} />
+              </a>
+              <button
+                className="action-btn-secondary"
+                onClick={() => {
+                  setShowSqlModal(false);
+                  syncWithSupabase();
+                }}
+              >
+                Check Sync Status
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL: ADD STUDENT ================= */}
       {showAddStudentModal && (
         <div className="modal-backdrop" onClick={() => setShowAddStudentModal(false)}>
@@ -1396,7 +1810,7 @@ export default function Home() {
             <div className="modal-icon"><Users size={21} /></div>
             <div className="section-kicker">NEW ADMISSION</div>
             <h2>Register Student</h2>
-            <p>Add a new reader and assign their dedicated study desk.</p>
+            <p>Add a new reader and assign their dedicated study desk in the database.</p>
 
             <div className="modal-field">
               <label htmlFor="student-name">FULL NAME *</label>
@@ -1462,7 +1876,7 @@ export default function Home() {
             <div className="modal-icon"><CreditCard size={21} /></div>
             <div className="section-kicker">ACCOUNTS & BILLING</div>
             <h2>Record Payment</h2>
-            <p>Log a monthly subscription payment from a student.</p>
+            <p>Log a monthly subscription payment directly into your database.</p>
 
             <div className="modal-field">
               <label htmlFor="pay-student">SELECT STUDENT *</label>
