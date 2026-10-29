@@ -48,7 +48,7 @@
    RESET & BASE
    ============================================================ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; overflow-x: hidden; }
 body {
   background: var(--bg);
   color: var(--ink);
@@ -56,6 +56,8 @@ body {
   font-size: 13px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  min-height: 100vh;
 }
 button, input { font: inherit; color: inherit; cursor: pointer; }
 button { border: 0; background: transparent; }
@@ -65,7 +67,7 @@ h1, h2, h3, h4 { letter-spacing: -0.03em; }
 /* ============================================================
    LAYOUT
    ============================================================ */
-.app-shell { display: flex; min-height: 100vh; }
+.app-shell { display: flex; min-height: 100vh; width: 100%; overflow: hidden; }
 
 /* ============================================================
    SIDEBAR
@@ -169,7 +171,7 @@ h1, h2, h3, h4 { letter-spacing: -0.03em; }
 /* ============================================================
    MAIN AREA
    ============================================================ */
-.main-area { margin-left: 256px; min-height: 100vh; }
+.main-area { margin-left: 256px; min-height: 100vh; width: calc(100% - 256px); overflow-x: hidden; }
 
 .topbar {
   height: 64px;
@@ -214,7 +216,7 @@ h1, h2, h3, h4 { letter-spacing: -0.03em; }
 /* ============================================================
    CONTENT
    ============================================================ */
-.content { max-width: 1440px; margin: auto; padding: 36px 40px 28px; }
+.content { width: 100%; max-width: 1440px; margin: auto; padding: 36px 40px 28px; }
 
 .welcome-row { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 28px; }
 .eyebrow { display: flex; align-items: center; gap: 7px; font-size: 10px; color: var(--muted); font-weight: 600; letter-spacing: 1px; }
@@ -242,7 +244,7 @@ h1 em {
 /* ============================================================
    STAT CARDS
    ============================================================ */
-.stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-bottom: 20px; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-bottom: 20px; width: 100%; }
 .stat-card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -283,7 +285,7 @@ h1 em {
 /* ============================================================
    DASHBOARD GRID
    ============================================================ */
-.dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 16px; margin-bottom: 18px; }
+.dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; margin-bottom: 18px; width: 100%; }
 .panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; }
 .seat-panel, .activity-panel { min-height: 380px; }
 
@@ -548,17 +550,17 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   .seat { height: 34px; }
   .seat-grid { gap: 10px; }
 }
-@media (max-width: 1200px) {
-  .sidebar { width: 224px; padding: 20px 13px; }
-  .main-area { margin-left: 224px; }
-  .content { padding: 28px; }
+@media (max-width: 1280px) {
+  .sidebar { width: 220px; padding: 20px 12px; }
+  .main-area { margin-left: 220px; width: calc(100% - 220px); }
+  .content { padding: 28px 28px; }
   .topbar { padding: 0 28px; }
   .stats-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .dashboard-grid { grid-template-columns: minmax(0,1.3fr) minmax(280px,1fr); }
-  .seat-grid { gap: 6px; }
-  .seat { height: 27px; }
+  .dashboard-grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+  .seat-grid { gap: 5px; }
+  .seat { height: 26px; }
 }
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .sidebar { width: 66px; padding: 18px 8px; }
   .brand > div:last-child, .workspace, .nav-label, .nav-item span, .nav-count, .plan-card, .profile-meta, .profile > svg { display: none; }
   .brand { padding: 0 5px 24px; }
@@ -568,10 +570,12 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   .tools-label { display: none; }
   .sidebar-bottom { display: block; }
   .profile { justify-content: center; padding: 14px 0 0; }
-  .main-area { margin-left: 66px; }
+  .main-area { margin-left: 66px; width: calc(100% - 66px); }
   .topbar { padding: 0 20px; }
-  .content { padding: 26px 20px; }
+  .content { padding: 24px 18px; }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
   .dashboard-grid { grid-template-columns: 1fr; }
+  .seat-panel, .activity-panel { min-height: 0; }
   .activity-list { grid-template-columns: 1fr 1fr; column-gap: 16px; }
   .activity-item:nth-child(3) { border-bottom: 0; }
 }
