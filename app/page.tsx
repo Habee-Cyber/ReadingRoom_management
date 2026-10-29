@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, ChevronDown, CircleHelp, Clock3, CreditCard, LayoutDashboard, LogOut, MoreHorizontal, Plus, Search, Settings, SlidersHorizontal, Users, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowDownLeft, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, ChevronDown, CircleHelp, Clock3, CreditCard, LayoutDashboard, LogOut, Moon, MoreHorizontal, Plus, Search, Settings, SlidersHorizontal, Sun, Users, X } from "lucide-react";
 
 type Seat = { id: number; status: "available" | "occupied" | "reserved"; name?: string; zone: string };
 const initialSeats: Seat[] = Array.from({ length: 32 }, (_, i) => {
@@ -27,6 +27,25 @@ export default function Home() {
   const [studentView, setStudentView] = useState(false);
   const [studentName, setStudentName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const saved = (typeof window !== "undefined" && localStorage.getItem("theme")) as "dark" | "light" | null;
+    const initial = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    setTheme(initial);
+    document.documentElement.setAttribute("data-theme", initial);
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("theme", next);
+    }
+    document.documentElement.setAttribute("data-theme", next);
+    notify(`Switched to ${next === "dark" ? "Dark" : "Light"} mode`);
+  };
+
   const available = seats.filter((seat) => seat.status === "available").length;
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 2600); };
   const reserve = () => {
@@ -35,7 +54,7 @@ export default function Home() {
     setSelected(null); setStudentView(false); notify("Booking request sent to the reading room admin");
   };
 
-  if (studentView) return <StudentPortal seats={seats} onBack={() => setStudentView(false)} onSelect={(seat) => { setSelected(seat); setStudentView(false); }} />;
+  if (studentView) return <StudentPortal seats={seats} theme={theme} onToggleTheme={toggleTheme} onBack={() => setStudentView(false)} onSelect={(seat) => { setSelected(seat); setStudentView(false); }} />;
 
   return <main className="app-shell">
     <aside className="sidebar">
@@ -46,11 +65,29 @@ export default function Home() {
         {[[LayoutDashboard,"Overview"],[Users,"Students"],[BookOpen,"Seat map"],[CreditCard,"Payments"]].map(([Icon,label]: any) => <button className={`nav-item ${active === label ? "active" : ""}`} key={label} onClick={() => { setActive(label); if (label !== "Overview") notify(`${label} view selected`); }}><Icon size={18} strokeWidth={1.8}/><span>{label}</span>{label === "Payments" && <i className="nav-count">3</i>}</button>)}
       </nav>
       <div className="nav-label tools-label">PREFERENCES</div>
-      <nav className="navigation"><button className="nav-item" onClick={() => notify("Settings are coming soon")}><Settings size={18}/><span>Settings</span></button><button className="nav-item" onClick={() => notify("Help center is coming soon")}><CircleHelp size={18}/><span>Help center</span></button></nav>
+      <nav className="navigation">
+        <button className="nav-item" onClick={toggleTheme} title="Toggle Dark/Light Mode">
+          {theme === "dark" ? <Sun size={18} strokeWidth={1.8}/> : <Moon size={18} strokeWidth={1.8}/>}
+          <span>{theme === "dark" ? "Light theme" : "Dark theme"}</span>
+        </button>
+        <button className="nav-item" onClick={() => notify("Settings are coming soon")}><Settings size={18}/><span>Settings</span></button>
+        <button className="nav-item" onClick={() => notify("Help center is coming soon")}><CircleHelp size={18}/><span>Help center</span></button>
+      </nav>
       <div className="sidebar-bottom"><div className="plan-card"><div className="plan-top"><span className="plan-dot"/> YOUR SPACE <span className="plan-live">LIVE</span></div><strong>Looking good, Sara ✨</strong><p>Your reading room is 78% full. Keep the quiet going.</p><div className="progress"><i/></div><small>25 of 32 seats occupied</small></div><button className="profile"><div className="avatar admin-avatar">SP</div><div className="profile-meta"><strong>Sara Patel</strong><span>Administrator</span></div><MoreHorizontal size={19}/></button></div>
     </aside>
     <section className="main-area">
-      <header className="topbar"><div className="crumb">Workspace <span>/</span> <strong>{active}</strong></div><div className="top-actions"><button className="icon-btn search-trigger" onClick={() => document.getElementById("student-search")?.focus()}><Search size={18}/></button><button className="icon-btn notification" onClick={() => notify("You're all caught up!")}><Bell size={18}/><i/></button><div className="top-divider"/><button className="view-switch" onClick={() => setStudentView(true)}><span className="view-dot"/> Student view <ArrowUpRight size={14}/></button></div></header>
+      <header className="topbar">
+        <div className="crumb">Workspace <span>/</span> <strong>{active}</strong></div>
+        <div className="top-actions">
+          <button className="icon-btn search-trigger" onClick={() => document.getElementById("student-search")?.focus()} title="Search"><Search size={18}/></button>
+          <button className="icon-btn theme-toggle-btn" onClick={toggleTheme} title={`Switch to ${theme === "dark" ? "Light" : "Dark"} mode`} aria-label="Toggle Theme">
+            {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
+          <button className="icon-btn notification" onClick={() => notify("You're all caught up!")}><Bell size={18}/><i/></button>
+          <div className="top-divider"/>
+          <button className="view-switch" onClick={() => setStudentView(true)}><span className="view-dot"/> Student view <ArrowUpRight size={14}/></button>
+        </div>
+      </header>
       <div className="content">
         <div className="welcome-row"><div><div className="eyebrow"><span/> TUESDAY, OCTOBER 29, 2024</div><h1>A little room to <em>focus.</em></h1><p className="welcome-copy">Here’s what’s happening at your reading room today.</p></div><button className="invite-button" onClick={() => notify("Invite link copied — share it with a new student!")}><Plus size={17}/> Invite a student <ArrowUpRight size={15}/></button></div>
         <div className="stats-grid">
@@ -75,10 +112,18 @@ export default function Home() {
   </main>;
 }
 
-function StudentPortal({ seats, onBack, onSelect }: { seats: Seat[]; onBack: () => void; onSelect: (seat: Seat) => void }) {
+function StudentPortal({ seats, theme, onToggleTheme, onBack, onSelect }: { seats: Seat[]; theme: "dark" | "light"; onToggleTheme: () => void; onBack: () => void; onSelect: (seat: Seat) => void }) {
   const available = seats.filter((seat) => seat.status === "available").length;
   return <main className="student-portal">
-    <header className="student-header"><a className="brand" href="#"><div className="brand-mark"><BookOpen size={20}/></div><div><strong>stillroom</strong><span>READING SPACE</span></div></a><button className="view-switch" onClick={onBack}>Admin preview <ArrowUpRight size={14}/></button></header>
+    <header className="student-header">
+      <a className="brand" href="#"><div className="brand-mark"><BookOpen size={20}/></div><div><strong>stillroom</strong><span>READING SPACE</span></div></a>
+      <div className="top-actions">
+        <button className="icon-btn theme-toggle-btn" onClick={onToggleTheme} title={`Switch to ${theme === "dark" ? "Light" : "Dark"} mode`} aria-label="Toggle Theme">
+          {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+        </button>
+        <button className="view-switch" onClick={onBack}>Admin preview <ArrowUpRight size={14}/></button>
+      </div>
+    </header>
     <section className="student-hero"><div className="student-intro"><div className="eyebrow"><span/> SERENITY STUDY HALL · MEMBERSHIP</div><h1>Find your little <em>corner.</em></h1><p>Choose a seat that feels right. We’ll confirm your booking shortly.</p><div className="student-availability"><span className="availability-dot"/><strong>{available} seats available</strong><span>· ₹1,200 / month</span></div></div><div className="student-note"><BookOpen size={19}/><strong>A calmer place to focus</strong><span>Quiet study zones, welcoming people, and a seat that’s yours.</span></div></section>
     <section className="student-map-panel"><div className="panel-heading"><div><div className="section-kicker">PICK YOUR PREFERRED SEAT</div><h2>Reading room floor plan</h2></div><div className="legend"><span><i className="legend-open"/> Available</span><span><i className="legend-taken"/> Occupied</span><span><i className="legend-held"/> Reserved</span></div></div><div className="student-floor-plan"><div className="zone-label"><span>01</span><i/> QUIET ZONE <small>· 16 seats</small></div><div className="seat-grid">{seats.slice(0,16).map((seat) => <SeatButton key={seat.id} seat={seat} onClick={() => seat.status === "available" && onSelect(seat)}/>)}</div><div className="zone-divider"><span>glass partition</span></div><div className="zone-label"><span>02</span><i/> WINDOW SIDE <small>· 16 seats</small></div><div className="seat-grid">{seats.slice(16).map((seat) => <SeatButton key={seat.id} seat={seat} onClick={() => seat.status === "available" && onSelect(seat)}/>)}</div><div className="map-bottom"><span><i/> Entrance</span><span className="map-note">Choose any available seat to request it</span><span className="map-scale">NOT TO SCALE</span></div></div></section>
     <footer className="student-footer">Questions? Contact Serenity Study Hall · Membership requests are confirmed by the room admin.</footer>
